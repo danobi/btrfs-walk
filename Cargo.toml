@@ -5,4 +5,5 @@ authors = ["Daniel Xu <dxu@dxuuu.xyz>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 structopt = "0.3"
