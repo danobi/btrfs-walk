@@ -108,7 +108,7 @@ pub struct BtrfsSuperblock {
     pub uuid_tree_generation: u64,
     pub metadata_uuid: [u8; BTRFS_FSID_SIZE],
     /// Future expansion
-    pub _reserved: [u8; 28],
+    pub _reserved: [u64; 28],
     pub sys_chunk_array: [u8; BTRFS_SYSTEM_CHUNK_ARRAY_SIZE],
     pub root_backups: [BtrfsRootBackup; 4],
 }
