@@ -8,6 +8,7 @@ use structopt::StructOpt;
 
 mod structs;
 use structs::*;
+mod chunk_tree;
 
 /// Physical address of the first superblock
 const BTRFS_SUPERBLOCK_OFFSET: u64 = 0x10_000;
