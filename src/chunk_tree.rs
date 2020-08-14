@@ -1,16 +1,16 @@
 #[derive(Default)]
-struct ChunkTreeKey {
+pub struct ChunkTreeKey {
     pub start: u64,
     pub size: u64,
 }
 
 #[derive(Default)]
-struct ChunkTreeValue {
+pub struct ChunkTreeValue {
     pub offset: u64,
 }
 
 #[derive(Default)]
-struct ChunkTreeCache {
+pub struct ChunkTreeCache {
     inner: Vec<(ChunkTreeKey, ChunkTreeValue)>,
 }
 
