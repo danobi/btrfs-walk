@@ -4,6 +4,8 @@ const BTRFS_FSID_SIZE: usize = 16;
 const BTRFS_UUID_SIZE: usize = 16;
 const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 
+pub const BTRFS_CHUNK_ITEM_KEY: u8 = 228;
+
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct BtrfsDevItem {
@@ -111,4 +113,43 @@ pub struct BtrfsSuperblock {
     pub _reserved: [u64; 28],
     pub sys_chunk_array: [u8; BTRFS_SYSTEM_CHUNK_ARRAY_SIZE],
     pub root_backups: [BtrfsRootBackup; 4],
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsStripe {
+    pub devid: u64,
+    pub offset: u64,
+    pub dev_uuid: [u8; BTRFS_UUID_SIZE],
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsChunk {
+    /// size of this chunk in bytes
+    pub length: u64,
+    /// objectid of the root referencing this chunk
+    pub owner: u64,
+    pub stripe_len: u64,
+    pub ty: u64,
+    /// optimal io alignment for this chunk
+    pub io_align: u32,
+    /// optimal io width for this chunk
+    pub io_width: u32,
+    /// minimal io size for this chunk
+    pub sector_size: u32,
+    /// 2^16 stripes is quite a lot, a second limit is the size of a single item in the btree
+    pub num_stripes: u16,
+    /// sub stripes only matter for raid10
+    pub sub_stripes: u16,
+    pub stripe: BtrfsStripe,
+    // additional stripes go here
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsKey {
+    pub objectid: u64,
+    pub ty: u8,
+    pub offset: u64,
 }
