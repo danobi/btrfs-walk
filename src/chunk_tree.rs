@@ -1,10 +1,10 @@
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct ChunkTreeKey {
     pub start: u64,
     pub size: u64,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct ChunkTreeValue {
     pub offset: u64,
 }
@@ -23,14 +23,22 @@ impl ChunkTreeCache {
         self.inner.push((key, value));
     }
 
-    pub fn offset(&self, logical: u64) -> Option<u64> {
+    pub fn mapping_kv(&self, logical: u64) -> Option<(ChunkTreeKey, ChunkTreeValue)> {
         for (k, v) in &self.inner {
             if logical >= k.start && logical < (k.start + k.size) {
-                return Some(v.offset + (logical - k.start));
+                return Some((*k, *v));
             }
         }
 
         None
+    }
+
+    pub fn offset(&self, logical: u64) -> Option<u64> {
+        if let Some((k, v)) = self.mapping_kv(logical) {
+            Some(v.offset + (logical - k.start))
+        } else {
+            None
+        }
     }
 
     fn contains_overlapping(&self, key: &ChunkTreeKey) -> bool {

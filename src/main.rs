@@ -3,7 +3,7 @@ use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
 use std::slice;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use structopt::StructOpt;
 
 mod structs;
@@ -108,6 +108,28 @@ fn bootstrap_chunk_tree(superblock: &BtrfsSuperblock) -> Result<ChunkTreeCache> 
     Ok(chunk_tree_cache)
 }
 
+fn read_chunk_tree_root(
+    file: &File,
+    chunk_root_logical: u64,
+    cache: &ChunkTreeCache,
+) -> Result<Vec<u8>> {
+    let size = cache
+        .mapping_kv(chunk_root_logical)
+        .ok_or_else(|| anyhow!("Chunk tree root not bootstrapped"))?
+        .0
+        .size;
+    let physical = cache
+        .offset(chunk_root_logical)
+        .ok_or_else(|| anyhow!("Chunk tree root not bootstrapped"))?;
+
+    let mut root = Vec::with_capacity(size as usize);
+    // with_capacity() does not affect len() but resize() does
+    root.resize(size as usize, 0);
+    file.read_exact_at(&mut root, physical)?;
+
+    Ok(root)
+}
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -120,6 +142,20 @@ fn main() {
     let superblock = parse_superblock(&file).expect("failed to parse superblock");
 
     // Bootstrap chunk tree
-    let _chunk_tree_cache =
+    let chunk_tree_cache =
         bootstrap_chunk_tree(&superblock).expect("failed to bootstrap chunk tree");
+    println!(
+        "chunk tree root at physical offset={}, size={}",
+        chunk_tree_cache
+            .offset(superblock.chunk_root)
+            .expect("chunk tree root not in bootstraped chunk tree"),
+        chunk_tree_cache
+            .mapping_kv(superblock.chunk_root)
+            .expect("chunk tree root not in bootstrapped chunk tree")
+            .0
+            .size
+    );
+
+    let _chunk_root = read_chunk_tree_root(&file, superblock.chunk_root, &chunk_tree_cache)
+        .expect("failed to read chunk tree root");
 }
