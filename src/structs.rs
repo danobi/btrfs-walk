@@ -153,3 +153,51 @@ pub struct BtrfsKey {
     pub ty: u8,
     pub offset: u64,
 }
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsHeader {
+    pub csum: [u8; BTRFS_CSUM_SIZE],
+    pub fsid: [u8; BTRFS_FSID_SIZE],
+    /// Which block this node is supposed to live in
+    pub bytenr: u64,
+    pub flags: u64,
+    pub chunk_tree_uuid: [u8; BTRFS_UUID_SIZE],
+    pub generation: u64,
+    pub owner: u64,
+    pub nritems: u32,
+    pub level: u8,
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+/// A `BtrfsLeaf` is full of `BtrfsItem`s. `offset` and `size` (relative to start of data area)
+/// tell us where to find the item in the leaf.
+pub struct BtrfsItem {
+    pub key: BtrfsKey,
+    pub offset: u32,
+    pub size: u32,
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsLeaf {
+    pub header: BtrfsHeader,
+    // `BtrfsItem`s begin here
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+/// All non-leaf blocks are nodes and they hold only keys are pointers to other blocks
+pub struct BtrfsKeyPtr {
+    pub key: BtrfsKey,
+    pub blockptr: u64,
+    pub generation: u64,
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsNode {
+    pub header: BtrfsHeader,
+    // `BtrfsKeyPtr`s begin here
+}
