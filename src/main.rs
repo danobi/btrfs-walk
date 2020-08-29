@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
 use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
@@ -124,9 +123,7 @@ fn read_chunk_tree_root(
         .offset(chunk_root_logical)
         .ok_or_else(|| anyhow!("Chunk tree root not bootstrapped"))?;
 
-    let mut root = Vec::with_capacity(size as usize);
-    // with_capacity() does not affect len() but resize() does
-    root.resize(size as usize, 0);
+    let mut root = vec![0; size as usize];
     file.read_exact_at(&mut root, physical)?;
 
     println!(
@@ -162,11 +159,10 @@ fn read_chunk_tree(
             let chunk = unsafe {
                 // `item.offset` is offset from data portion of `BtrfsLeaf` where associated
                 // `BtrfsChunk` starts
-                &*(root.as_ptr().offset(
-                    (std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
-                        .try_into()
-                        .unwrap(),
-                ) as *const BtrfsChunk)
+                &*(root
+                    .as_ptr()
+                    .add(std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
+                    as *const BtrfsChunk)
             };
 
             chunk_tree_cache.insert(

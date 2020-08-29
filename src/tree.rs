@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use anyhow::{bail, Result};
 
 use crate::structs::*;
@@ -22,7 +20,7 @@ pub fn parse_btrfs_node<'a>(buf: &'a [u8]) -> Result<Vec<&'a BtrfsKeyPtr>> {
     let mut offset = std::mem::size_of::<BtrfsHeader>();
     let mut key_ptrs = Vec::new();
     for _ in 0..header.nritems {
-        key_ptrs.push(unsafe { &*(buf.as_ptr().offset(offset as isize) as *const BtrfsKeyPtr) });
+        key_ptrs.push(unsafe { &*(buf.as_ptr().add(offset) as *const BtrfsKeyPtr) });
         offset += std::mem::size_of::<BtrfsKeyPtr>();
     }
 
@@ -35,9 +33,7 @@ pub fn parse_btrfs_leaf<'a>(buf: &'a [u8]) -> Result<Vec<&'a BtrfsItem>> {
     let mut offset = std::mem::size_of::<BtrfsHeader>();
     let mut items = Vec::new();
     for _ in 0..header.nritems {
-        items.push(unsafe {
-            &*(buf.as_ptr().offset(offset.try_into().unwrap()) as *const BtrfsItem)
-        });
+        items.push(unsafe { &*(buf.as_ptr().add(offset) as *const BtrfsItem) });
         offset += std::mem::size_of::<BtrfsItem>();
     }
 
