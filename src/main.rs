@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
 use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
@@ -10,6 +11,7 @@ mod structs;
 use structs::*;
 mod chunk_tree;
 use chunk_tree::{ChunkTreeCache, ChunkTreeKey, ChunkTreeValue};
+mod tree;
 
 /// Physical address of the first superblock
 const BTRFS_SUPERBLOCK_OFFSET: u64 = 0x10_000;
@@ -127,7 +129,69 @@ fn read_chunk_tree_root(
     root.resize(size as usize, 0);
     file.read_exact_at(&mut root, physical)?;
 
+    println!(
+        "chunk tree root at logical offset={}, physical offset={}, size={}",
+        chunk_root_logical, physical, size,
+    );
+
     Ok(root)
+}
+
+fn read_chunk_tree(
+    file: &File,
+    root: &[u8],
+    chunk_tree_cache: &mut ChunkTreeCache,
+    superblock: &BtrfsSuperblock,
+) -> Result<()> {
+    let header = tree::parse_btrfs_header(root).expect("failed to parse chunk root header");
+    unsafe {
+        println!(
+            "chunk tree root level={}, bytenr={}, nritems={}",
+            header.level, header.bytenr, header.nritems
+        );
+    }
+
+    // Level 0 is leaf node, !0 is internal node
+    if header.level == 0 {
+        let items = tree::parse_btrfs_leaf(root)?;
+        for item in items {
+            if item.key.ty != BTRFS_CHUNK_ITEM_KEY {
+                continue;
+            }
+
+            let chunk = unsafe {
+                // `item.offset` is offset from data portion of `BtrfsLeaf` where associated
+                // `BtrfsChunk` starts
+                &*(root.as_ptr().offset(
+                    (std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
+                        .try_into()
+                        .unwrap(),
+                ) as *const BtrfsChunk)
+            };
+
+            chunk_tree_cache.insert(
+                ChunkTreeKey {
+                    start: item.key.offset,
+                    size: chunk.length,
+                },
+                ChunkTreeValue {
+                    offset: chunk.stripe.offset,
+                },
+            );
+        }
+    } else {
+        let ptrs = tree::parse_btrfs_node(root)?;
+        for ptr in ptrs {
+            let physical = chunk_tree_cache
+                .offset(ptr.blockptr)
+                .ok_or_else(|| anyhow!("Chunk tree node not mapped"))?;
+            let mut node = vec![0; superblock.node_size as usize];
+            file.read_exact_at(&mut node, physical)?;
+            read_chunk_tree(file, &node, chunk_tree_cache, superblock)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn main() {
@@ -142,20 +206,14 @@ fn main() {
     let superblock = parse_superblock(&file).expect("failed to parse superblock");
 
     // Bootstrap chunk tree
-    let chunk_tree_cache =
+    let mut chunk_tree_cache =
         bootstrap_chunk_tree(&superblock).expect("failed to bootstrap chunk tree");
-    println!(
-        "chunk tree root at physical offset={}, size={}",
-        chunk_tree_cache
-            .offset(superblock.chunk_root)
-            .expect("chunk tree root not in bootstraped chunk tree"),
-        chunk_tree_cache
-            .mapping_kv(superblock.chunk_root)
-            .expect("chunk tree root not in bootstrapped chunk tree")
-            .0
-            .size
-    );
 
-    let _chunk_root = read_chunk_tree_root(&file, superblock.chunk_root, &chunk_tree_cache)
+    // Read root chunk tree node
+    let chunk_root = read_chunk_tree_root(&file, superblock.chunk_root, &chunk_tree_cache)
         .expect("failed to read chunk tree root");
+
+    // Read rest of chunk tree
+    read_chunk_tree(&file, &chunk_root, &mut chunk_tree_cache, &superblock)
+        .expect("failed to read chunk tree");
 }
