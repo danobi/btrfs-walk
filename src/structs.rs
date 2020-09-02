@@ -4,6 +4,9 @@ const BTRFS_FSID_SIZE: usize = 16;
 const BTRFS_UUID_SIZE: usize = 16;
 const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 
+pub const BTRFS_FS_TREE_OBJECTID: u64 = 5;
+
+pub const BTRFS_ROOT_ITEM_KEY: u8 = 132;
 pub const BTRFS_CHUNK_ITEM_KEY: u8 = 228;
 
 #[repr(C, packed)]
@@ -144,6 +147,72 @@ pub struct BtrfsChunk {
     pub sub_stripes: u16,
     pub stripe: BtrfsStripe,
     // additional stripes go here
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsTimespec {
+    pub sec: u64,
+    pub nsec: u32,
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsInodeItem {
+    /// nfs style generation number
+    pub generation: u64,
+    /// transid that last touched this inode
+    pub transid: u64,
+    pub size: u64,
+    pub nbytes: u64,
+    pub block_group: u64,
+    pub nlink: u32,
+    pub uid: u32,
+    pub gid: u32,
+    pub mode: u32,
+    pub rdev: u64,
+    pub flags: u64,
+    /// modification sequence number for NFS
+    pub sequence: u64,
+    pub reserved: [u64; 4],
+    pub atime: BtrfsTimespec,
+    pub ctime: BtrfsTimespec,
+    pub mtime: BtrfsTimespec,
+    pub otime: BtrfsTimespec,
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct BtrfsRootItem {
+    pub inode: BtrfsInodeItem,
+    pub generation: u64,
+    pub root_dirid: u64,
+    pub bytenr: u64,
+    pub byte_limit: u64,
+    pub bytes_used: u64,
+    pub last_snapshot: u64,
+    pub flags: u64,
+    pub refs: u32,
+    pub drop_progress: BtrfsKey,
+    pub drop_level: u8,
+    pub level: u8,
+    pub generation_v2: u64,
+    pub uuid: [u8; BTRFS_UUID_SIZE],
+    pub parent_uuid: [u8; BTRFS_UUID_SIZE],
+    pub received_uuid: [u8; BTRFS_UUID_SIZE],
+    /// updated when an inode changes
+    pub ctransid: u64,
+    /// trans when created
+    pub otransid: u64,
+    /// trans when sent. non-zero for received subvol
+    pub stransid: u64,
+    /// trans when received. non-zero for received subvol
+    pub rtransid: u64,
+    pub ctime: BtrfsTimespec,
+    pub otime: BtrfsTimespec,
+    pub stime: BtrfsTimespec,
+    pub rtime: BtrfsTimespec,
+    pub reserved: [u64; 8],
 }
 
 #[repr(C, packed)]
