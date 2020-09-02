@@ -134,6 +134,31 @@ fn read_chunk_tree_root(
     Ok(root)
 }
 
+fn read_root_tree_root(
+    file: &File,
+    root_tree_root_logical: u64,
+    cache: &ChunkTreeCache,
+) -> Result<Vec<u8>> {
+    let size = cache
+        .mapping_kv(root_tree_root_logical)
+        .ok_or_else(|| anyhow!("Root tree root logical addr not mapped"))?
+        .0
+        .size;
+    let physical = cache
+        .offset(root_tree_root_logical)
+        .ok_or_else(|| anyhow!("Root tree root logical addr not mapped"))?;
+
+    let mut root = vec![0; size as usize];
+    file.read_exact_at(&mut root, physical)?;
+
+    println!(
+        "root tree root at logical offset={}, physical offset={}, size={}",
+        root_tree_root_logical, physical, size,
+    );
+
+    Ok(root)
+}
+
 fn read_chunk_tree(
     file: &File,
     root: &[u8],
@@ -212,4 +237,8 @@ fn main() {
     // Read rest of chunk tree
     read_chunk_tree(&file, &chunk_root, &mut chunk_tree_cache, &superblock)
         .expect("failed to read chunk tree");
+
+    // Read root tree root node
+    let root_tree_root = read_root_tree_root(&file, superblock.root, &chunk_tree_cache)
+        .expect("failed to read root tree root");
 }
