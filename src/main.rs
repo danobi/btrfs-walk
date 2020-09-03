@@ -269,12 +269,12 @@ fn read_fs_tree_root(
 }
 
 fn walk_fs_tree(
-    _file: &File,
-    _superblock: &BtrfsSuperblock,
-    root: &[u8],
-    _cache: &ChunkTreeCache,
+    file: &File,
+    superblock: &BtrfsSuperblock,
+    node: &[u8],
+    cache: &ChunkTreeCache,
 ) -> Result<()> {
-    let header = tree::parse_btrfs_header(root)?;
+    let header = tree::parse_btrfs_header(node)?;
     unsafe {
         println!(
             "fs tree node level={}, bytenr={}, nritems={}",
@@ -282,7 +282,47 @@ fn walk_fs_tree(
         );
     }
 
-    // XXX implement
+    // Leaf node
+    if header.level == 0 {
+        let items = tree::parse_btrfs_leaf(node)?;
+        for item in items {
+            if item.key.ty != BTRFS_DIR_ITEM_KEY.into() {
+                continue;
+            }
+
+            let dir_item = unsafe {
+                &*(node
+                    .as_ptr()
+                    .add(std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
+                    as *const BtrfsDirItem)
+            };
+
+            if dir_item.ty != BTRFS_FT_REG_FILE {
+                continue;
+            }
+
+            let name_slice = unsafe {
+                std::slice::from_raw_parts(
+                    (dir_item as *const BtrfsDirItem as *const u8)
+                        .add(std::mem::size_of::<BtrfsDirItem>()),
+                    dir_item.name_len.into(),
+                )
+            };
+
+            let name = std::str::from_utf8(name_slice)?;
+            println!("filename={}", name);
+        }
+    } else {
+        let ptrs = tree::parse_btrfs_node(node)?;
+        for ptr in ptrs {
+            let physical = cache
+                .offset(ptr.blockptr)
+                .ok_or_else(|| anyhow!("fs tree node not mapped"))?;
+            let mut node = vec![0; superblock.node_size as usize];
+            file.read_exact_at(&mut node, physical)?;
+            walk_fs_tree(file, superblock, &node, cache)?;
+        }
+    }
 
     Ok(())
 }
