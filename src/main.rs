@@ -268,16 +268,61 @@ fn read_fs_tree_root(
     }
 }
 
-/// Returns `BtrfsInodeRef` associated with `inode` number. Also returns `BtrfsKey` associated
-/// with the `BtrfsInodeRef`.
+/// Returns `BtrfsInodeRef` and payload associated with `inode` number. Also returns `BtrfsKey`
+/// associated with the `BtrfsInodeRef`.
 fn get_inode_ref(
     inode: u64,
     file: &File,
     superblock: &BtrfsSuperblock,
-    fs_root_node: &[u8],
+    node: &[u8],
     cache: &ChunkTreeCache,
-) -> Result<Option<(BtrfsKey, BtrfsInodeRef)>> {
-    unimplemented!();
+) -> Result<Option<(BtrfsKey, BtrfsInodeRef, Vec<u8>)>> {
+    let header = tree::parse_btrfs_header(node)?;
+    // Leaf node
+    if header.level == 0 {
+        let items = tree::parse_btrfs_leaf(node)?;
+        for item in items {
+            if item.key.ty != BTRFS_INODE_REF_KEY {
+                continue;
+            }
+
+            if item.key.objectid == inode {
+                let inode_ref = unsafe {
+                    &*(node
+                        .as_ptr()
+                        .add(std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
+                        as *const BtrfsInodeRef)
+                };
+
+                let inode_ref_payload = unsafe {
+                    std::slice::from_raw_parts(
+                        (inode_ref as *const BtrfsInodeRef as *const u8)
+                            .add(std::mem::size_of::<BtrfsInodeRef>()),
+                        inode_ref.name_len.into(),
+                    )
+                };
+
+                return Ok(Some((item.key, *inode_ref, inode_ref_payload.into())));
+            }
+        }
+
+        Ok(None)
+    } else {
+        let ptrs = tree::parse_btrfs_node(node)?;
+        for ptr in ptrs {
+            let physical = cache
+                .offset(ptr.blockptr)
+                .ok_or_else(|| anyhow!("fs tree node not mapped"))?;
+            let mut node = vec![0; superblock.node_size as usize];
+            file.read_exact_at(&mut node, physical)?;
+            let ret = get_inode_ref(inode, file, superblock, &node, cache)?;
+            if ret.is_some() {
+                return Ok(ret);
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 fn walk_fs_tree(
@@ -330,12 +375,13 @@ fn walk_fs_tree(
             // `item.key.objectid` is parent inode number
             let mut current_inode_nr = item.key.objectid;
             loop {
-                let (current_key, current_inode) =
+                let (current_key, _current_inode, current_inode_payload) =
                     get_inode_ref(current_inode_nr, file, superblock, root_fs_node, cache)?
                         .ok_or_else(|| {
                             anyhow!("Failed to find inode_ref for inode={}", current_inode_nr)
                         })?;
-                assert_eq!(current_key.objectid, current_inode_nr);
+                unsafe { assert_eq!(current_key.objectid, current_inode_nr) };
+
                 // `current_key.offset` is parent inode # of `current_inode`
                 if current_key.offset == current_inode_nr {
                     // If parent inode # and current inode # match, that means ".." points to
@@ -344,15 +390,10 @@ fn walk_fs_tree(
                     break;
                 }
 
-                let s = unsafe {
-                    std::slice::from_raw_parts(
-                        (&current_inode as *const BtrfsInodeRef as *const u8)
-                            .add(std::mem::size_of::<BtrfsInodeRef>()),
-                        current_inode.name_len.into(),
-                    )
-                };
-                let n = std::str::from_utf8(s)?;
-                path_prefix.insert_str(0, &format!("{}/", n));
+                path_prefix.insert_str(
+                    0,
+                    &format!("{}/", std::str::from_utf8(&current_inode_payload)?),
+                );
 
                 current_inode_nr = current_key.offset;
             }

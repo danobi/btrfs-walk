@@ -6,6 +6,7 @@ const BTRFS_SYSTEM_CHUNK_ARRAY_SIZE: usize = 2048;
 
 pub const BTRFS_FS_TREE_OBJECTID: u64 = 5;
 
+pub const BTRFS_INODE_REF_KEY: u8 = 12;
 pub const BTRFS_DIR_ITEM_KEY: u8 = 84;
 pub const BTRFS_ROOT_ITEM_KEY: u8 = 132;
 pub const BTRFS_CHUNK_ITEM_KEY: u8 = 228;
