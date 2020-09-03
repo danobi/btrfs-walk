@@ -215,6 +215,71 @@ fn read_chunk_tree(
     Ok(())
 }
 
+fn read_fs_tree_root(
+    file: &File,
+    superblock: &BtrfsSuperblock,
+    root_tree_root: &[u8],
+    cache: &ChunkTreeCache,
+) -> Result<Vec<u8>> {
+    let header =
+        tree::parse_btrfs_header(root_tree_root).expect("failed to parse root tree root header");
+    unsafe {
+        println!(
+            "root tree root level={}, bytenr={}, nritems={}",
+            header.level, header.bytenr, header.nritems
+        );
+    }
+
+    if header.level == 0 {
+        let items = tree::parse_btrfs_leaf(root_tree_root)?;
+        for item in items.iter().rev() {
+            if item.key.objectid != BTRFS_FS_TREE_OBJECTID || item.key.ty != BTRFS_ROOT_ITEM_KEY {
+                continue;
+            }
+
+            let root_item = unsafe {
+                &*(root_tree_root
+                    .as_ptr()
+                    .add(std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
+                    as *const BtrfsRootItem)
+            };
+
+            let physical = cache
+                .offset(root_item.bytenr)
+                .ok_or_else(|| anyhow!("fs tree root not mapped"))?;
+            let mut node = vec![0; superblock.node_size as usize];
+            file.read_exact_at(&mut node, physical)?;
+
+            return Ok(node);
+        }
+
+        bail!("Failed to find root tree item for fs tree root");
+    } else {
+        // I'm not sure if the root tree root can be an internal node. Either way, let's
+        // see if we can ignore this and still make things work.
+        bail!("Root tree root is not a leaf node");
+    }
+}
+
+fn walk_fs_tree(
+    _file: &File,
+    _superblock: &BtrfsSuperblock,
+    root: &[u8],
+    _cache: &ChunkTreeCache,
+) -> Result<()> {
+    let header = tree::parse_btrfs_header(root)?;
+    unsafe {
+        println!(
+            "fs tree root level={}, bytenr={}, nritems={}",
+            header.level, header.bytenr, header.nritems
+        );
+    }
+
+    // XXX implement
+
+    Ok(())
+}
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -241,4 +306,12 @@ fn main() {
     // Read root tree root node
     let root_tree_root = read_root_tree_root(&file, superblock.root, &chunk_tree_cache)
         .expect("failed to read root tree root");
+
+    // Read filesystem tree root node
+    let fs_tree_root = read_fs_tree_root(&file, &superblock, &root_tree_root, &chunk_tree_cache)
+        .expect("failed to read fs tree root");
+
+    // Now start walking fs tree
+    walk_fs_tree(&file, &superblock, &fs_tree_root, &chunk_tree_cache)
+        .expect("failed to walk fs tree");
 }
