@@ -230,6 +230,13 @@ pub struct BtrfsDirItem {
 
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
+pub struct BtrfsInodeRef {
+    pub index: u64,
+    pub name_len: u16,
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
 pub struct BtrfsKey {
     pub objectid: u64,
     pub ty: u8,
