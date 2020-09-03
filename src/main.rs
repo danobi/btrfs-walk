@@ -344,7 +344,7 @@ fn walk_fs_tree(
     if header.level == 0 {
         let items = tree::parse_btrfs_leaf(node)?;
         for item in items {
-            if item.key.ty != BTRFS_DIR_ITEM_KEY.into() {
+            if item.key.ty != BTRFS_DIR_ITEM_KEY {
                 continue;
             }
 
