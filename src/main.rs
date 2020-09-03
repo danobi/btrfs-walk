@@ -168,7 +168,7 @@ fn read_chunk_tree(
     let header = tree::parse_btrfs_header(root).expect("failed to parse chunk root header");
     unsafe {
         println!(
-            "chunk tree root level={}, bytenr={}, nritems={}",
+            "chunk tree node level={}, bytenr={}, nritems={}",
             header.level, header.bytenr, header.nritems
         );
     }
@@ -250,6 +250,13 @@ fn read_fs_tree_root(
             let mut node = vec![0; superblock.node_size as usize];
             file.read_exact_at(&mut node, physical)?;
 
+            unsafe {
+                println!(
+                    "fs tree root at logical offset={}, physical offset={}, size={}",
+                    root_item.bytenr, physical, superblock.node_size,
+                );
+            }
+
             return Ok(node);
         }
 
@@ -270,7 +277,7 @@ fn walk_fs_tree(
     let header = tree::parse_btrfs_header(root)?;
     unsafe {
         println!(
-            "fs tree root level={}, bytenr={}, nritems={}",
+            "fs tree node level={}, bytenr={}, nritems={}",
             header.level, header.bytenr, header.nritems
         );
     }
