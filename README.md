@@ -4,8 +4,8 @@ Prints the absolute path of all regular files in an unmounted btrfs filesystem
 image.
 
 `btrfs-walk` walks on-disk btrfs data structures without external btrfs
-libraries or `ioctl(2)` calls. Intended to be an educational exercise for
-learning about btrfs's on-disk data format.
+libraries or `ioctl(2)` calls. Written as an educational exercise for learning
+about btrfs's on-disk data format.
 
 ## Example output
 
