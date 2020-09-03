@@ -17,7 +17,10 @@ const BTRFS_SUPERBLOCK_OFFSET: u64 = 0x10_000;
 const BTRFS_SUPERBLOCK_MAGIC: [u8; 0x8] = *b"_BHRfS_M";
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "btrfs-walk", about = "Walk an on-disk btrfs filesystem")]
+#[structopt(
+    name = "btrfs-walk",
+    about = "Prints the absolute path of all regular files in an unmounted btrfs filesystem image"
+)]
 struct Opt {
     /// Block device or file to process
     #[structopt(parse(from_os_str))]
