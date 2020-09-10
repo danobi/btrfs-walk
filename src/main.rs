@@ -14,7 +14,7 @@ mod tree;
 
 /// Physical address of the first superblock
 const BTRFS_SUPERBLOCK_OFFSET: u64 = 0x10_000;
-const BTRFS_SUPERBLOCK_MAGIC: [u8; 0x8] = *b"_BHRfS_M";
+const BTRFS_SUPERBLOCK_MAGIC: [u8; 8] = *b"_BHRfS_M";
 
 #[derive(Debug, StructOpt)]
 #[structopt(
