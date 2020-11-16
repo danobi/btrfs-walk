@@ -233,42 +233,40 @@ fn read_fs_tree_root(
         );
     }
 
-    if header.level == 0 {
-        let items = tree::parse_btrfs_leaf(root_tree_root)?;
-        for item in items.iter().rev() {
-            if item.key.objectid != BTRFS_FS_TREE_OBJECTID || item.key.ty != BTRFS_ROOT_ITEM_KEY {
-                continue;
-            }
-
-            let root_item = unsafe {
-                &*(root_tree_root
-                    .as_ptr()
-                    .add(std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
-                    as *const BtrfsRootItem)
-            };
-
-            let physical = cache
-                .offset(root_item.bytenr)
-                .ok_or_else(|| anyhow!("fs tree root not mapped"))?;
-            let mut node = vec![0; superblock.node_size as usize];
-            file.read_exact_at(&mut node, physical)?;
-
-            unsafe {
-                println!(
-                    "fs tree root at logical offset={}, physical offset={}, size={}",
-                    root_item.bytenr, physical, superblock.node_size,
-                );
-            }
-
-            return Ok(node);
-        }
-
-        bail!("Failed to find root tree item for fs tree root");
-    } else {
-        // I'm not sure if the root tree root can be an internal node. Either way, let's
-        // see if we can ignore this and still make things work.
+    if header.level != 0 {
         bail!("Root tree root is not a leaf node");
     }
+
+    let items = tree::parse_btrfs_leaf(root_tree_root)?;
+    for item in items.iter().rev() {
+        if item.key.objectid != BTRFS_FS_TREE_OBJECTID || item.key.ty != BTRFS_ROOT_ITEM_KEY {
+            continue;
+        }
+
+        let root_item = unsafe {
+            &*(root_tree_root
+                .as_ptr()
+                .add(std::mem::size_of::<BtrfsHeader>() + item.offset as usize)
+                as *const BtrfsRootItem)
+        };
+
+        let physical = cache
+            .offset(root_item.bytenr)
+            .ok_or_else(|| anyhow!("fs tree root not mapped"))?;
+        let mut node = vec![0; superblock.node_size as usize];
+        file.read_exact_at(&mut node, physical)?;
+
+        unsafe {
+            println!(
+                "fs tree root at logical offset={}, physical offset={}, size={}",
+                root_item.bytenr, physical, superblock.node_size,
+            );
+        }
+
+        return Ok(node);
+    }
+
+    bail!("Failed to find root tree item for fs tree root");
 }
 
 /// Returns `BtrfsInodeRef` and payload associated with `inode` number. Also returns `BtrfsKey`
